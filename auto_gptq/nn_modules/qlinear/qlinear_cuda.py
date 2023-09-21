@@ -267,8 +267,8 @@ class QuantLinear(nn.Module):
                     g_idx_i = self.g_idx[i*num_dim:(i+1)*num_dim]
                     weights.append(scale_i[g_idx_i.long()] * (weight_i - zeros_i[g_idx_i.long()]))
                 weights = torch.cat(weights,dim=1)
-            out = torch.matmul(x.half(), weights)
-        out = out.half().reshape(out_shape)
+            out = torch.matmul(x, weights)
+        out = out.reshape(out_shape)
         out = out + self.bias if self.bias is not None else out
         return out
 
