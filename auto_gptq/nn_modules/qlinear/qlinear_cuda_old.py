@@ -226,43 +226,48 @@ class QuantLinear(nn.Module):
         else:
             if self.wf.device != self.qzeros.device:
                self.wf = self.wf.to(self.qzeros.device)
-                
+
+            try:
+                if torch.has_aio:
+                    return torch.aio_qlinear_gptq(x, self.qweight, self.bias, self.scales, self.qzeros, self.g_idx, self.bits)
+            except Exception as e:
+                print(e)
             if self.bits in [2,4,8]:
-               zeros = torch.bitwise_right_shift(torch.unsqueeze(self.qzeros, 2).expand(-1, -1, 32 // self.bits), self.wf.unsqueeze(0)).to(torch.int16 if self.bits == 8 else torch.int8)
-               torch.bitwise_and(zeros, (2 ** self.bits) - 1, out=zeros)
-                   
-               zeros = zeros + 1
-               zeros = zeros.reshape(-1, 1, zeros.shape[1] * zeros.shape[2])
-   
-               scales = self.scales
-               scales = scales.reshape(-1, 1, scales.shape[-1])
-                
-               weight = torch.bitwise_right_shift(torch.unsqueeze(self.qweight, 1).expand(-1, 32 // self.bits, -1), self.wf.unsqueeze(-1)).to(torch.int16 if self.bits == 8 else torch.int8)
-               torch.bitwise_and(weight,(2 ** self.bits) - 1, out=weight)
-               weight = weight.reshape(-1, self.group_size, weight.shape[2])
+                zeros = torch.bitwise_right_shift(torch.unsqueeze(self.qzeros, 2).expand(-1, -1, 32 // self.bits), self.wf.unsqueeze(0)).to(torch.int16 if self.bits == 8 else torch.int8)
+                torch.bitwise_and(zeros, (2 ** self.bits) - 1, out=zeros)
+
+                zeros = zeros + 1
+                zeros = zeros.reshape(-1, 1, zeros.shape[1] * zeros.shape[2])
+
+                scales = self.scales
+                scales = scales.reshape(-1, 1, scales.shape[-1])
+
+                weight = torch.bitwise_right_shift(torch.unsqueeze(self.qweight, 1).expand(-1, 32 // self.bits, -1), self.wf.unsqueeze(-1)).to(torch.int16 if self.bits == 8 else torch.int8)
+                torch.bitwise_and(weight,(2 ** self.bits) - 1, out=weight)
+                weight = weight.reshape(-1, self.group_size, weight.shape[2])
             elif self.bits == 3:
-               zeros = self.qzeros.reshape(self.qzeros.shape[0], self.qzeros.shape[1]//3, 3, 1).expand(-1, -1, -1, 12)
-               zeros = (zeros >> self.wf.unsqueeze(0))
-               zeros[:,:,0,10] = (zeros[:,:,0,10]&0x3) | ((zeros[:,:,1,0] << 2)&0x4)
-               zeros[:,:,1,11] = (zeros[:,:,1,11]&0x1) | ((zeros[:,:,2,0] << 1)&0x6)
-               zeros = zeros & 0x7
-               zeros = torch.cat([zeros[:,:,0,:11], zeros[:,:,1,1:12], zeros[:,:,2,1:11]], dim=2)
-                
-               zeros = zeros + 1
-               zeros = zeros.reshape(-1, 1, zeros.shape[1] * zeros.shape[2]) 
-               
-               scales = self.scales
-               scales = scales.reshape(-1, 1, scales.shape[-1])
-                
-               weight = self.qweight.reshape(self.qweight.shape[0]//3, 3, 1, self.qweight.shape[1]).expand(-1, -1, 12, -1)
-               weight = (weight >> self.wf.unsqueeze(-1))&0x7
-               weight[:,0,10] = (weight[:,0,10]&0x3) | ((weight[:,1,0] << 2)&0x4)
-               weight[:,1,11] = (weight[:,1,11]&0x1) | ((weight[:,2,0] << 1)&0x6)
-               weight = weight & 0x7
-               weight = torch.cat([weight[:,0,:11], weight[:,1,1:12], weight[:,2,1:11]], dim=1)
-               weight = weight.reshape(-1, self.group_size, weight.shape[2])
+                zeros = self.qzeros.reshape(self.qzeros.shape[0], self.qzeros.shape[1]//3, 3, 1).expand(-1, -1, -1, 12)
+                zeros = (zeros >> self.wf.unsqueeze(0))
+                zeros[:,:,0,10] = (zeros[:,:,0,10]&0x3) | ((zeros[:,:,1,0] << 2)&0x4)
+                zeros[:,:,1,11] = (zeros[:,:,1,11]&0x1) | ((zeros[:,:,2,0] << 1)&0x6)
+                zeros = zeros & 0x7
+                zeros = torch.cat([zeros[:,:,0,:11], zeros[:,:,1,1:12], zeros[:,:,2,1:11]], dim=2)
+
+                zeros = zeros + 1
+                zeros = zeros.reshape(-1, 1, zeros.shape[1] * zeros.shape[2]) 
+
+                scales = self.scales
+                scales = scales.reshape(-1, 1, scales.shape[-1])
+
+                weight = self.qweight.reshape(self.qweight.shape[0]//3, 3, 1, self.qweight.shape[1]).expand(-1, -1, 12, -1)
+                weight = (weight >> self.wf.unsqueeze(-1))&0x7
+                weight[:,0,10] = (weight[:,0,10]&0x3) | ((weight[:,1,0] << 2)&0x4)
+                weight[:,1,11] = (weight[:,1,11]&0x1) | ((weight[:,2,0] << 1)&0x6)
+                weight = weight & 0x7
+                weight = torch.cat([weight[:,0,:11], weight[:,1,1:12], weight[:,2,1:11]], dim=1)
+                weight = weight.reshape(-1, self.group_size, weight.shape[2])
             else:
-               raise NotImplementedError("Only 2,3,4,8 bits are supported.")
+                raise NotImplementedError("Only 2,3,4,8 bits are supported.")
             weight = (scales * (weight - zeros))
             weight = weight.reshape(weight.shape[0] * weight.shape[1], weight.shape[2])
 
