@@ -254,7 +254,7 @@ class QuantLinear(nn.Module):
                 zeros = torch.cat([zeros[:,:,0,:11], zeros[:,:,1,1:12], zeros[:,:,2,1:11]], dim=2)
 
                 zeros = zeros + 1
-                zeros = zeros.reshape(-1, 1, zeros.shape[1] * zeros.shape[2]) 
+                zeros = zeros.reshape(-1, 1, zeros.shape[1] * zeros.shape[2])
 
                 scales = self.scales
                 scales = scales.reshape(-1, 1, scales.shape[-1])
