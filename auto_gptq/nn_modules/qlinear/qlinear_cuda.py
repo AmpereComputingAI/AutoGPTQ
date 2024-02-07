@@ -254,6 +254,11 @@ class QuantLinear(nn.Module):
             if self.wf.device != self.qzeros.device:
                 self.wf = self.wf.to(self.qzeros.device)
 
+            try:
+                if torch.has_aio:
+                    return torch.aio_qlinear_gptq(x, self.qweight, self.bias, self.scales, self.qzeros, self.g_idx, self.bits)
+            except Exception as e:
+                print(e)
             if self.bits in [2, 4, 8]:
                 zeros = torch.bitwise_right_shift(
                     torch.unsqueeze(self.qzeros, 2).expand(-1, -1, 32 // self.bits),
