@@ -199,10 +199,10 @@ class QuantLinear(nn.Module):
         qzeros = qzeros.astype(np.int32)
         self.qzeros = torch.from_numpy(qzeros)
 
-    def forward(self, x):
+    def forward(self, input):
+        out_shape = input.shape[:-1] + (self.outfeatures,)
+        x = input.reshape(-1, input.shape[-1])
         x_dtype = x.dtype
-        out_shape = x.shape[:-1] + (self.outfeatures,)
-        x = x.reshape(-1, x.shape[-1])
         if (
             x.device.type == "cuda"
             and self.autogptq_cuda_available is True
@@ -294,7 +294,7 @@ class QuantLinear(nn.Module):
 
             try:
                 if torch.has_aio:
-                    return torch.aio_qlinear_gptq(x, self.qweight, self.bias, self.scales, self.qzeros, self.g_idx, self.bits)
+                    return torch.aio_qlinear_gptq(input, self.qweight, self.bias, self.scales, self.qzeros, self.g_idx, self.bits)
             except Exception as e:
                 print(e)
 
